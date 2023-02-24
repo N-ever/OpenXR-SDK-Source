@@ -607,6 +607,14 @@ void RuntimeManifestFile::CreateIfValid(const Json::Value &root_node, const std:
 XrResult RuntimeManifestFile::FindManifestFiles(std::vector<std::unique_ptr<RuntimeManifestFile>> &manifest_files) {
     XrResult result = XR_SUCCESS;
     std::string filename = PlatformUtilsGetSecureEnv(OPENXR_RUNTIME_JSON_ENV_VAR);
+    // Add by Evern for runtime.json 
+    if (filename.empty()) {
+        std::string tmpFile = "/data/app/runtime.json";
+        if (FileSysUtilsPathExists(tmpFile)) {
+            filename = tmpFile;
+        }
+    }
+    // End by Evern
     if (!filename.empty()) {
         LoaderLogger::LogInfoMessage(
             "", "RuntimeManifestFile::FindManifestFiles - using environment variable override runtime file " + filename);
