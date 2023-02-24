@@ -56,6 +56,13 @@ XrPosef RotateCCWAboutYAxis(float radians, XrVector3f translation) {
 }  // namespace Pose
 }  // namespace Math
 
+// Add by Evern for Fps
+struct FpsInfo {
+    int frameCount;
+    std::chrono::milliseconds last_print_time_ms;
+} fpsInfo;
+// End by Evern 
+
 inline XrReferenceSpaceCreateInfo GetXrReferenceSpaceCreateInfo(const std::string& referenceSpaceTypeStr) {
     XrReferenceSpaceCreateInfo referenceSpaceCreateInfo{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
     referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::Identity();
@@ -197,12 +204,23 @@ struct OpenXrProgram : IOpenXrProgram {
         CHECK_XRCMD(xrCreateInstance(&createInfo, &m_instance));
     }
 
+// Add by Evern for fps
+    void initParams() {
+        fpsInfo.frameCount = 0;
+        fpsInfo.last_print_time_ms = std::chrono::milliseconds{0};
+    }
+// End by Evern
+
     void CreateInstance() override {
         LogLayersAndExtensions();
 
         CreateInstanceInternal();
 
         LogInstanceInfo();
+
+// Add by Evern for fps
+        initParams();
+// End by Evern
     }
 
     void LogViewConfigurations() {
@@ -884,6 +902,17 @@ struct OpenXrProgram : IOpenXrProgram {
         frameEndInfo.layerCount = (uint32_t)layers.size();
         frameEndInfo.layers = layers.data();
         CHECK_XRCMD(xrEndFrame(m_session, &frameEndInfo));
+        // Add by Evern for fps
+        fpsInfo.frameCount++;
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch());
+        auto time_duration = (now - fpsInfo.last_print_time_ms).count(); 
+        if (time_duration > 1000) {
+            float fps = fpsInfo.frameCount / (time_duration / 1000.f);
+            Log::Write(Log::Level::Verbose, Fmt("App FPS: %f", fps));
+            fpsInfo.frameCount = 0;
+            fpsInfo.last_print_time_ms = now;
+        }
+        // End by Evern
     }
 
     bool RenderLayer(XrTime predictedDisplayTime, std::vector<XrCompositionLayerProjectionView>& projectionLayerViews,
