@@ -93,6 +93,7 @@ find_package(JsonCpp)
 
 ### All options defined here
 option(BUILD_LOADER "Build loader" ON)
+option(USE_META_LOADER "Use Meta loader" OFF)
 option(BUILD_ALL_EXTENSIONS "Build loader and layers with all extensions" OFF)
 option(
     BUILD_LOADER_WITH_EXCEPTION_HANDLING
@@ -418,7 +419,14 @@ if(ANDROID)
     find_library(ANDROID_LOG_LIBRARY NAMES log)
 endif()
 
-if(BUILD_LOADER)
+if(USE_META_LOADER)
+    add_library(openxr_loader SHARED IMPORTED)
+    set_property(
+        TARGET
+        openxr_loader
+        PROPERTY IMPORTED_LOCATION
+        ${CMAKE_CURRENT_SOURCE_DIR}/../external/loader/meta/libs/${CMAKE_ANDROID_ARCH_ABI}/libopenxr_loader.so)
+elseif(BUILD_LOADER)
     add_subdirectory(loader)
 endif()
 
