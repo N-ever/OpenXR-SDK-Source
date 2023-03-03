@@ -44,10 +44,11 @@ android {
                 arguments '-DANDROID_STL=c++_shared',
                         '-DBUILD_API_LAYERS=OFF',
                         '-DBUILD_TESTS=ON',
-                        '-DUSE_META_LOADER=ON',
+                        // '-DUSE_META_LOADER=ON',
+                        '-DBUILD_LOADER=ON',
                         '-DBUILD_CONFORMANCE_TESTS=OFF',
                         '-DBUILD_ALL_EXTENSIONS=ON'
-                targets "hello_xr"
+                targets "openxr_loader", "hello_xr"
             }
         }
         ndk {

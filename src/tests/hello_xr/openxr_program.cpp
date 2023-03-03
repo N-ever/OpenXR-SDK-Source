@@ -61,7 +61,7 @@ struct FpsInfo {
     int frameCount;
     std::chrono::milliseconds last_print_time_ms;
 } fpsInfo;
-// End by Evern 
+// End by Evern
 
 inline XrReferenceSpaceCreateInfo GetXrReferenceSpaceCreateInfo(const std::string& referenceSpaceTypeStr) {
     XrReferenceSpaceCreateInfo referenceSpaceCreateInfo{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
@@ -346,6 +346,10 @@ struct OpenXrProgram : IOpenXrProgram {
     struct InputState {
         XrActionSet actionSet{XR_NULL_HANDLE};
         XrAction grabAction{XR_NULL_HANDLE};
+        XrAction aAction{XR_NULL_HANDLE};
+        XrAction bAction{XR_NULL_HANDLE};
+        XrAction triggerAction{XR_NULL_HANDLE};
+        XrAction thumbStickAction{XR_NULL_HANDLE};
         XrAction poseAction{XR_NULL_HANDLE};
         XrAction vibrateAction{XR_NULL_HANDLE};
         XrAction quitAction{XR_NULL_HANDLE};
@@ -379,6 +383,34 @@ struct OpenXrProgram : IOpenXrProgram {
             actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
             actionInfo.subactionPaths = m_input.handSubactionPath.data();
             CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.grabAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
+            strcpy_s(actionInfo.actionName, "trigger_object");
+            strcpy_s(actionInfo.localizedActionName, "Trigger Object");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.triggerAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "a_click");
+            strcpy_s(actionInfo.localizedActionName, "A Click");
+            actionInfo.countSubactionPaths = 1;
+            actionInfo.subactionPaths = &m_input.handSubactionPath[Side::RIGHT];
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.aAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy_s(actionInfo.actionName, "b_click");
+            strcpy_s(actionInfo.localizedActionName, "B Click");
+            actionInfo.countSubactionPaths = 1;
+            actionInfo.subactionPaths = &m_input.handSubactionPath[Side::RIGHT];
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.bAction));
+
+            actionInfo.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
+            strcpy_s(actionInfo.actionName, "thumbstick_value");
+            strcpy_s(actionInfo.localizedActionName, "ThumbStick Value");
+            actionInfo.countSubactionPaths = uint32_t(m_input.handSubactionPath.size());
+            actionInfo.subactionPaths = m_input.handSubactionPath.data();
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.thumbStickAction));
 
             // Create an input action getting the left and right hand poses.
             actionInfo.actionType = XR_ACTION_TYPE_POSE_INPUT;
@@ -415,7 +447,9 @@ struct OpenXrProgram : IOpenXrProgram {
         std::array<XrPath, Side::COUNT> hapticPath;
         std::array<XrPath, Side::COUNT> menuClickPath;
         std::array<XrPath, Side::COUNT> bClickPath;
+        std::array<XrPath, Side::COUNT> aClickPath;
         std::array<XrPath, Side::COUNT> triggerValuePath;
+        std::array<XrPath, Side::COUNT> thumbStickPath;
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/select/click", &selectPath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/select/click", &selectPath[Side::RIGHT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/squeeze/value", &squeezeValuePath[Side::LEFT]));
@@ -430,10 +464,13 @@ struct OpenXrProgram : IOpenXrProgram {
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/output/haptic", &hapticPath[Side::RIGHT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/menu/click", &menuClickPath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/menu/click", &menuClickPath[Side::RIGHT]));
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/b/click", &bClickPath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/b/click", &bClickPath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/b/click", &bClickPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/a/click", &aClickPath[Side::RIGHT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/value", &triggerValuePath[Side::LEFT]));
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/trigger/value", &triggerValuePath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick", &thumbStickPath[Side::LEFT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick", &thumbStickPath[Side::RIGHT]));
         // Suggest bindings for KHR Simple.
         {
             XrPath khrSimpleInteractionProfilePath;
@@ -468,6 +505,30 @@ struct OpenXrProgram : IOpenXrProgram {
                                                             {m_input.vibrateAction, hapticPath[Side::RIGHT]}}};
             XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
             suggestedBindings.interactionProfile = oculusTouchInteractionProfilePath;
+            suggestedBindings.suggestedBindings = bindings.data();
+            suggestedBindings.countSuggestedBindings = (uint32_t)bindings.size();
+            CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings));
+        }
+        // Suggest bindings for the Pimax Touch.
+        {
+            XrPath pimaxTouchInteractionProfilePath;
+            CHECK_XRCMD(
+                xrStringToPath(m_instance, "/interaction_profiles/test/test_controller", &pimaxTouchInteractionProfilePath));
+            std::vector<XrActionSuggestedBinding> bindings{{{m_input.grabAction, squeezeValuePath[Side::LEFT]},
+                                                            {m_input.grabAction, squeezeValuePath[Side::RIGHT]},
+                                                            {m_input.triggerAction, triggerValuePath[Side::RIGHT]},
+                                                            {m_input.triggerAction, triggerValuePath[Side::LEFT]},
+                                                            {m_input.aAction, aClickPath[Side::RIGHT]},
+                                                            {m_input.bAction, bClickPath[Side::RIGHT]},
+                                                            {m_input.thumbStickAction, thumbStickPath[Side::RIGHT]},
+                                                            {m_input.thumbStickAction, thumbStickPath[Side::LEFT]},
+                                                            {m_input.poseAction, posePath[Side::LEFT]},
+                                                            {m_input.poseAction, posePath[Side::RIGHT]},
+                                                            {m_input.quitAction, menuClickPath[Side::LEFT]},
+                                                            {m_input.vibrateAction, hapticPath[Side::LEFT]},
+                                                            {m_input.vibrateAction, hapticPath[Side::RIGHT]}}};
+            XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+            suggestedBindings.interactionProfile = pimaxTouchInteractionProfilePath;
             suggestedBindings.suggestedBindings = bindings.data();
             suggestedBindings.countSuggestedBindings = (uint32_t)bindings.size();
             CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings));
@@ -663,8 +724,10 @@ struct OpenXrProgram : IOpenXrProgram {
                 XrSwapchainCreateInfo swapchainCreateInfo{XR_TYPE_SWAPCHAIN_CREATE_INFO};
                 swapchainCreateInfo.arraySize = 1;
                 swapchainCreateInfo.format = m_colorSwapchainFormat;
-                swapchainCreateInfo.width = vp.recommendedImageRectWidth;
-                swapchainCreateInfo.height = vp.recommendedImageRectHeight;
+                // swapchainCreateInfo.width = vp.recommendedImageRectWidth;
+                // swapchainCreateInfo.height = vp.recommendedImageRectHeight;
+                swapchainCreateInfo.width = 2160;
+                swapchainCreateInfo.height = 2160;
                 swapchainCreateInfo.mipCount = 1;
                 swapchainCreateInfo.faceCount = 1;
                 swapchainCreateInfo.sampleCount = m_graphicsPlugin->GetSupportedSwapchainSampleCount(vp);
@@ -846,6 +909,17 @@ struct OpenXrProgram : IOpenXrProgram {
 
             XrActionStateFloat grabValue{XR_TYPE_ACTION_STATE_FLOAT};
             CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &grabValue));
+            Log::Write(Log::Level::Error, Fmt("grab value %f", grabValue.currentState));
+
+            getInfo.action = m_input.triggerAction;
+            CHECK_XRCMD(xrGetActionStateFloat(m_session, &getInfo, &grabValue));
+            Log::Write(Log::Level::Error, Fmt("trigger value %f", grabValue.currentState));
+
+            XrActionStateVector2f thumbStickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
+            getInfo.action = m_input.thumbStickAction;
+            CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getInfo, &thumbStickValue));
+            Log::Write(Log::Level::Error, Fmt("thumbstick value %f %f", thumbStickValue.currentState.x, thumbStickValue.currentState.y));
+
             if (grabValue.isActive == XR_TRUE) {
                 // Scale the rendered hand by 1.0f (open) to 0.5f (fully squeezed).
                 m_input.handScale[hand] = 1.0f - 0.5f * grabValue.currentState;
@@ -866,7 +940,20 @@ struct OpenXrProgram : IOpenXrProgram {
             XrActionStatePose poseState{XR_TYPE_ACTION_STATE_POSE};
             CHECK_XRCMD(xrGetActionStatePose(m_session, &getInfo, &poseState));
             m_input.handActive[hand] = poseState.isActive;
+
         }
+
+        XrActionStateBoolean clickValue{XR_TYPE_ACTION_STATE_BOOLEAN};
+        XrActionStateGetInfo bGetInfo{XR_TYPE_ACTION_STATE_GET_INFO};
+        bGetInfo.subactionPath = m_input.handSubactionPath[Side::RIGHT];
+        bGetInfo.action = m_input.aAction;
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &bGetInfo, &clickValue));
+        Log::Write(Log::Level::Error, Fmt("a click %d", clickValue.currentState));
+
+
+        bGetInfo.action = m_input.bAction;
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &bGetInfo, &clickValue));
+        Log::Write(Log::Level::Error, Fmt("b click %d", clickValue.currentState));
 
         // There were no subaction paths specified for the quit action, because we don't care which hand did it.
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.quitAction, XR_NULL_PATH};
@@ -905,7 +992,7 @@ struct OpenXrProgram : IOpenXrProgram {
         // Add by Evern for fps
         fpsInfo.frameCount++;
         auto now = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::system_clock::now().time_since_epoch());
-        auto time_duration = (now - fpsInfo.last_print_time_ms).count(); 
+        auto time_duration = (now - fpsInfo.last_print_time_ms).count();
         if (time_duration > 1000) {
             float fps = fpsInfo.frameCount / (time_duration / 1000.f);
             Log::Write(Log::Level::Verbose, Fmt("App FPS: %f", fps));
@@ -968,6 +1055,7 @@ struct OpenXrProgram : IOpenXrProgram {
                 if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
                     (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
                     float scale = 0.1f * m_input.handScale[hand];
+                    Log::Write(Log::Level::Verbose, Fmt("pose %f %f %f", spaceLocation.pose.position.x, spaceLocation.pose.position.y, spaceLocation.pose.position.z));
                     cubes.push_back(Cube{spaceLocation.pose, {scale, scale, scale}});
                 }
             } else {
